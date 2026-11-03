@@ -1,0 +1,47 @@
+{
+ "dati": "data/09_board_games.csv.gz",
+ "y": "average_rating",
+ "consegna": "Da cosa dipende il voto medio di un gioco da tavolo (durata, giocatori, età minima, anno, categoria, meccaniche)?",
+ "codice_preparazione": "d$ha_espansioni <- as.integer(!is.na(d$expansion)); d$in_raccolta <- as.integer(!is.na(d$compilation))",
+ "pesi": "users_rated",
+ "etichette": {
+  "category": 15,
+  "mechanic": 15
+ },
+ "codici_mancanti": {
+  "max_players": [
+   0
+  ],
+  "min_players": [
+   0
+  ],
+  "max_playtime": [
+   0
+  ],
+  "min_playtime": [
+   0
+  ],
+  "min_age": [
+   0
+  ]
+ },
+ "escludi": [
+  "game_id",
+  "description",
+  "image",
+  "name",
+  "thumbnail",
+  "artist",
+  "designer",
+  "publisher",
+  "family",
+  "compilation",
+  "expansion",
+  "playing_time",
+  "users_rated"
+ ],
+ "obiettivo": "interpretativo",
+ "logistica": "no",
+ "R_boot": 999,
+ "decisioni": {}
+}

@@ -1,0 +1,31 @@
+{
+ "dati": "data/14_bike_sharing_day.csv.gz",
+ "y": "registered",
+ "consegna": "Da cosa dipende il numero giornaliero di noleggi degli utenti registrati (pendolari): meteo, calendario, stagione, crescita del servizio? E quanto bene si prevedono i mesi successivi?",
+ "tempo": "as.numeric(as.Date(dteday))",
+ "taglio_tempo": 15553,
+ "trend": "as.numeric(as.Date(dteday) - as.Date('2011-01-01')) / 365.25",
+ "escludi": [
+  "instant",
+  "dteday",
+  "yr",
+  "casual",
+  "cnt",
+  "days_since_2011",
+  "cnt_2d_bfr"
+ ],
+ "obiettivo": "previsivo",
+ "logistica": "no",
+ "cosa_manca": [
+  "Eventi in citta' (concerti, partite, manifestazioni) e chiusure di strade.",
+  "Numero di stazioni e biciclette disponibili ogni giorno: la crescita del servizio e' misurata solo dal trend.",
+  "Meteo orario: la pioggia della mattina pesa piu' della media del giorno per chi va al lavoro."
+ ],
+ "R_boot": 999,
+ "decisioni": {
+  "tieni": [
+   "season",
+   "temp"
+  ]
+ }
+}

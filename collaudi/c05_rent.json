@@ -1,0 +1,19 @@
+{
+ "dati": "data/05_sf_rent.csv.gz",
+ "y": "price",
+ "consegna": "Capire da cosa dipende l'affitto mensile degli annunci nell'area di San Francisco (zona, dimensione, periodo)",
+ "filtro": "year >= 2011 & !is.na(sqft)",
+ "tempo": "date",
+ "taglio_tempo": 20160101,
+ "trend": "year + (as.numeric(substr(date, 5, 6)) - 1) / 12 + (as.numeric(substr(date, 7, 8)) - 1) / 365",
+ "escludi": [
+  "date",
+  "year",
+  "lat",
+  "lon",
+  "baths"
+ ],
+ "obiettivo": "interpretativo",
+ "R_boot": 999,
+ "decisioni": {}
+}

@@ -1,0 +1,12 @@
+{
+ "dati": "data/01_penguins.csv.gz",
+ "y": "body_mass_g",
+ "consegna": "Capire da cosa dipende il peso dei pinguini (specie, isola, sesso, misure del corpo)",
+ "fattori": [
+  "year"
+ ],
+ "obiettivo": "interpretativo",
+ "R_boot": 1999,
+ "R_boot_logit": 999,
+ "decisioni": {}
+}

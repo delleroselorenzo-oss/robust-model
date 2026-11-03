@@ -1,0 +1,18 @@
+{
+ "dati": "data/02_ceo_salary.csv.gz",
+ "y": "salary",
+ "consegna": "Capire da cosa dipende lo stipendio degli amministratori delegati (anzianita', eta', istruzione, dimensione e risultati dell'azienda)",
+ "escludi": [
+  "lsalary",
+  "lsales",
+  "lmktval",
+  "comtensq",
+  "ceotensq"
+ ],
+ "obiettivo": "interpretativo",
+ "R_boot": 1999,
+ "R_boot_logit": 999,
+ "decisioni": {
+  "soglia_binaria": 1000
+ }
+}

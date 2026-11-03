@@ -1,0 +1,11 @@
+{
+ "dati": "data/04_bodyfat.csv.gz",
+ "y": "DEXfat",
+ "consegna": "Stimare la percentuale di grasso corporeo (misurata con DXA, costosa) da misure antropometriche semplici",
+ "obiettivo": "previsivo",
+ "R_boot": 1999,
+ "R_boot_logit": 999,
+ "decisioni": {
+  "soglia_binaria": 35
+ }
+}

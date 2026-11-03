@@ -1,0 +1,27 @@
+{
+ "dati": "data/08_spotify_songs.csv.gz",
+ "y": "track_popularity",
+ "consegna": "Da cosa dipende la popolarità di una canzone su Spotify (caratteristiche audio, genere, anno di uscita)?",
+ "deduplica": "track_id",
+ "codice_preparazione": "d$anno <- as.numeric(substr(d$track_album_release_date, 1, 4))",
+ "escludi": [
+  "track_id",
+  "track_name",
+  "track_artist",
+  "track_album_id",
+  "track_album_name",
+  "track_album_release_date",
+  "playlist_name",
+  "playlist_id"
+ ],
+ "fattori": [
+  "playlist_genre",
+  "playlist_subgenre",
+  "key",
+  "mode"
+ ],
+ "obiettivo": "interpretativo",
+ "due_parti": true,
+ "R_boot": 999,
+ "decisioni": {}
+}

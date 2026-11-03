@@ -1,0 +1,23 @@
+{
+ "dati": "data/13_california_housing.csv.gz",
+ "y": "median_house_value",
+ "consegna": "Da cosa dipende il valore mediano delle case nei quartieri della California (censimento 1990)?",
+ "codice_preparazione": "d$stanze_famiglia <- d$total_rooms / d$households; d$camere_stanza <- d$total_bedrooms / d$total_rooms; d$persone_famiglia <- d$population / d$households; d$famiglie <- d$households; d$zona <- paste(round(d$latitude*2)/2, round(d$longitude*2)/2)",
+ "escludi": [
+  "total_rooms",
+  "total_bedrooms",
+  "population",
+  "households"
+ ],
+ "due_parti": {
+  "tappo": 500001
+ },
+ "obiettivo": "interpretativo",
+ "decisioni": {},
+ "cosa_manca": [
+  "Caratteristiche delle singole case (superficie, anno, stato): qui ci sono solo medie di quartiere.",
+  "Servizi e qualita' della zona: scuole, criminalita', trasporti, distanza dai centri di lavoro.",
+  "Il prezzo vero oltre i 500.001 $: per quei quartieri si sa solo che e' piu' alto."
+ ],
+ "R_boot": 999
+}

@@ -1,0 +1,66 @@
+{
+ "dati": "data/10_movies_bechdel.csv.gz",
+ "y": "intgross_2013",
+ "na_strings": [
+  "NA",
+  "",
+  "#N/A",
+  "N/A"
+ ],
+ "consegna": "Da cosa dipende l'incasso mondiale di un film (prezzi 2013), con le sole informazioni note prima dell'uscita, e il test di Bechdel conta?",
+ "codice_preparazione": "d$durata <- as.numeric(gsub('[^0-9]', '', d$runtime)); d$mese_uscita <- substr(d$released, 4, 6); d$rated[d$rated %in% c('N/A','Not Rated','Unrated','TV-14','TV-PG','X','NC-17')] <- 'Altro/non classificato'",
+ "etichette": {
+  "genre": 15,
+  "country": 8,
+  "language": 8
+ },
+ "escludi": [
+  "imdb",
+  "title",
+  "test",
+  "binary",
+  "code",
+  "budget",
+  "domgross",
+  "intgross",
+  "domgross_2013",
+  "period_code",
+  "decade_code",
+  "imdb_id",
+  "plot",
+  "response",
+  "writer",
+  "metascore",
+  "imdb_rating",
+  "director",
+  "released",
+  "actors",
+  "awards",
+  "runtime",
+  "type",
+  "poster",
+  "imdb_votes",
+  "error"
+ ],
+ "fattori": [
+  "clean_test",
+  "rated",
+  "mese_uscita"
+ ],
+ "obiettivo": "interpretativo",
+ "R_boot": 999,
+ "decisioni": {
+  "lambda": 0
+ },
+ "evento": "intgross_2013 > 2.5 * budget_2013",
+ "logistica": "si",
+ "cosa_manca": [
+  "Distribuzione: numero di sale nel weekend di apertura. E' il predittore piu' forte dell'incasso ed e' noto prima dell'uscita.",
+  "Budget di marketing: spesso vicino a quello di produzione, ma assente nel dataset.",
+  "Franchise: sequel, remake, saga, proprieta' intellettuale gia' nota (libro, fumetto, videogioco).",
+  "Forza di attori e regista: incassi dei loro film precedenti. Qui ci sono solo i nomi, che da soli non bastano.",
+  "Concorrenza e calendario: altri grandi film nelle stesse settimane, data esatta, festivita'.",
+  "Studio o distributore (major contro indipendente) e mercati di uscita (Cina, numero di paesi).",
+  "Dopo l'uscita (escluse per scelta): critica, passaparola, voti. Spiegano molto ma non si conoscono prima."
+ ]
+}

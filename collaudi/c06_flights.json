@@ -1,0 +1,29 @@
+{
+ "dati": "data/06b_nyc_flights_meteo.csv.gz",
+ "y": "ritardo",
+ "consegna": "Prima del decollo, quanto ritardo all'arrivo aspettarsi per un volo in partenza da New York (2013), dato il meteo orario all'aeroporto di partenza (usato come se fosse la previsione meteo)? (ritardo = arr_delay + 87, cioè minuti dal massimo anticipo osservato)",
+ "codice_preparazione": "d$ritardo <- d$arr_delay + 87; d$giorno_sett <- weekdays(as.Date(sprintf('%d-%02d-%02d', d$year, d$month, d$day)))",
+ "escludi": [
+  "year",
+  "day",
+  "dep_time",
+  "dep_delay",
+  "arr_time",
+  "arr_delay",
+  "air_time",
+  "sched_dep_time",
+  "sched_arr_time",
+  "flight",
+  "tailnum",
+  "minute"
+ ],
+ "fattori": [
+  "month",
+  "giorno_sett"
+ ],
+ "obiettivo": "previsivo",
+ "R_boot": 999,
+ "decisioni": {
+  "soglia_binaria": 102
+ }
+}

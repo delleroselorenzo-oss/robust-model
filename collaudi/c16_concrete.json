@@ -1,0 +1,15 @@
+{
+ "dati": "data/16_concrete.csv.gz",
+ "y": "strength",
+ "consegna": "Quanto resiste a compressione una miscela di calcestruzzo nuova, dati ingredienti ed eta' della prova?",
+ "R_boot": 999,
+ "obiettivo": "previsivo",
+ "metrica": "tipico",
+ "logistica": "no",
+ "codice_preparazione": "d$legante <- d$cement + d$slag + d$ash; d$acqua_cemento <- d$water / d$cement; d$acqua_legante <- d$water / d$legante",
+ "cosa_manca": [
+  "Tipo e classe del cemento, granulometria e natura degli aggregati.",
+  "Condizioni di maturazione (temperatura, umidita') e di prova.",
+  "Il laboratorio o la campagna di prova: misure dello stesso laboratorio si somigliano."
+ ]
+}

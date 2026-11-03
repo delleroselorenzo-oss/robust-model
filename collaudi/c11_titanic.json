@@ -1,0 +1,24 @@
+{
+ "dati": "data/11_titanic.csv.gz",
+ "y": "Survived",
+ "consegna": "Chi sopravvive al naufragio del Titanic e quanto contano classe, sesso, eta' e famiglia?",
+ "codice_preparazione": "tt <- table(d$Ticket); d$persone_biglietto <- as.integer(tt[d$Ticket]); d$tariffa_persona <- d$Fare / d$persone_biglietto; d$famiglia <- d$SibSp + d$Parch + 1; d$titolo <- sub('.*, *([^.]+)\\\\..*', '\\\\1', d$Name); d$titolo[!d$titolo %in% c('Mr','Mrs','Miss','Master')] <- 'Raro'; d$tariffa_persona[d$Fare == 0] <- NA",
+ "escludi": [
+  "PassengerId",
+  "Name",
+  "Ticket",
+  "Cabin",
+  "Fare"
+ ],
+ "fattori": [
+  "Pclass"
+ ],
+ "obiettivo": "interpretativo",
+ "R_boot_logit": 999,
+ "cosa_manca": [
+  "Posizione a bordo al momento dell'impatto (ponte, distanza dalle scialuppe): la cabina manca nel 77% dei casi.",
+  "Equipaggio: il dataset contiene solo passeggeri.",
+  "Comportamento e regole di imbarco sulle scialuppe ('prima donne e bambini' applicata diversamente sui due lati della nave)."
+ ],
+ "decisioni": {}
+}

@@ -1,0 +1,15 @@
+{
+ "dati": "data/03_student_mat.csv.gz",
+ "sep": ";",
+ "y": "G3",
+ "consegna": "Capire da cosa dipende il voto finale di matematica degli studenti (famiglia, abitudini, studio, scuola)",
+ "escludi": [
+  "G1",
+  "G2"
+ ],
+ "due_parti": true,
+ "obiettivo": "interpretativo",
+ "R_boot": 1999,
+ "R_boot_logit": 999,
+ "decisioni": {}
+}

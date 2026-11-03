@@ -1,0 +1,15 @@
+{
+ "dati": "data/15_insurance.csv.gz",
+ "y": "charges",
+ "consegna": "Da cosa dipendono le spese mediche annue degli assicurati (eta', BMI, fumo, figli, regione) e quanto bene si prevedono per un nuovo assicurato?",
+ "R_boot": 999,
+ "obiettivo": "interpretativo",
+ "metrica": "media",
+ "logistica": "no",
+ "cosa_manca": [
+  "Diagnosi e malattie croniche (diabete, cardiopatie): spiegano le spese molto alte meglio di eta' e BMI.",
+  "Ricoveri e interventi nell'anno: un solo ricovero puo' valere decine di migliaia di dollari.",
+  "Tipo di copertura e franchigia della polizza.",
+  "Storia delle spese negli anni precedenti."
+ ]
+}

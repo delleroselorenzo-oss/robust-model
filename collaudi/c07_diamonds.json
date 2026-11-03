@@ -1,0 +1,26 @@
+{
+ "dati": "data/07_diamonds.csv.gz",
+ "y": "price",
+ "consegna": "Da cosa dipende il prezzo di un diamante (peso, taglio, colore, purezza, dimensioni)?",
+ "codice_preparazione": "names(d)[match(c('x','y','z'), names(d))] <- c('lunghezza','larghezza','altezza'); d$larghezza[d$larghezza > 20] <- NA; d$altezza[d$altezza > 20] <- NA",
+ "codici_mancanti": {
+  "lunghezza": [
+   0
+  ],
+  "larghezza": [
+   0
+  ],
+  "altezza": [
+   0
+  ]
+ },
+ "fattori": [
+  "cut",
+  "color",
+  "clarity"
+ ],
+ "obiettivo": "interpretativo",
+ "logistica": "no",
+ "R_boot": 999,
+ "decisioni": {}
+}

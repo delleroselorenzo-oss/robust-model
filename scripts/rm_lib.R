@@ -263,8 +263,10 @@ profilo <- function(d, y = NULL, ordinato = FALSE) {
         break }
     }
   }
+  # quasi costante = quasi tutte le righe con lo stesso valore. Il solo rapporto primo/secondo valore segnalava
+  # anche le quantitative con il 16-23% di zeri (speechiness, instrumentalness: lezione 124)
   nzv <- sapply(d, function(x) { t <- sort(table(x), decreasing = TRUE)
-    length(t) > 1 && t[1] / t[2] > 19 && length(t) / n < 0.1 })
+    length(t) > 1 && t[1] / t[2] > 19 && length(t) / n < 0.1 && t[1] / sum(t) >= 0.9 })
   prof$segnalazione[nzv & prof$segnalazione == ""] <- "varianza quasi nulla"
   # (a) codici numerici che stanno per "mancante": 999, -99999, 99999999... o -1 in una x altrimenti >= 0
   prof$codici_numerici <- sapply(d, function(x) {
@@ -303,6 +305,9 @@ profilo <- function(d, y = NULL, ordinato = FALSE) {
       v <- if (lato == "max") max(z) else min(z); nv <- sum(z == v)
       vic <- if (lato == "max") z[z < v & z >= quantile(z, .95)] else z[z > v & z <= quantile(z, .05)]
       if (lato == "min" && v == 0) next             # una massa di zeri e' un fenomeno (conteggi, due parti), non un tappo
+      # 1 o 100 su una variabile >= 0: il bordo di un punteggio 0-1 o di una percentuale, oltre non si va
+      # (danceability = 1, frequenza = 100%: lezione 124); un tappo vero e' un limite di registrazione (500.001 $)
+      if (lato == "max" && v %in% c(1, 100) && min(z) >= 0) next
       if (length(unique(vic)) < 2) next              # coda senza valori vicini (anno di raccolta dei dati): non giudicabile
       tipico <- median(table(vic))
       if (nv >= 0.01 * length(z) && nv > 20 * tipico)
@@ -514,6 +519,9 @@ prepara_base <- function(d, cfg) {
     registra(F, "0.1", "x escluse", paste(esc, collapse = ", "), "identificativi, leakage, info successive a y",
              "escluse", "UTENTE") }
   for (v in intersect(unlist(cfg$fattori), names(d))) d[[v]] <- as.character(d[[v]])
+  # le righe vengono rinumerate: il gruppo va reindicizzato sui nuovi nomi, altrimenti con un filtro o con
+  # y mancanti le unita' finiscono sulle righe sbagliate (energia: 221 "unita'" su 174 paesi)
+  if (!is.null(.RM$gruppi)) .RM$gruppi <- setNames(unname(.RM$gruppi[rownames(d)]), seq_len(nrow(d)))
   rownames(d) <- NULL
   d
 }
@@ -573,6 +581,7 @@ prepara_apprendi <- function(d, cfg) {
   if (length(uno)) d[uno] <- NULL
   attr(d, "stato_prep") <- list(colonne = names(d),
     livelli = lapply(d[sapply(d, is.factor)], levels), effetti_gruppo = eff_g)
+  if (nrow(d) == length(rn0)) rownames(d) <- rn0   # i nomi di riga servono a ritrovare l'unita' (gruppo)
   d
 }
 
@@ -984,14 +993,14 @@ soglie_interazioni <- function(d, yv, t_base, sel) {
     if (!all(v %in% names(d))) next
     fa <- v[sapply(d[v], is.factor)]; nu <- v[sapply(d[v], is.numeric)]
     if (length(fa) != 1 || length(nu) != 1 || length(unique(d[[nu]])) < 20) next
-    m0 <- lmx(f_da_termini(yv, c(t_base, sel, add)), data = d); b0 <- BIC(m0)
+    m0 <- lmx(f_da_termini(yv, c(t_base, sel, add)), data = d); de <- deff_gruppi(m0)
     cc <- unique(signif(quantile(d[[nu]], seq(0.1, 0.9, 0.025), na.rm = TRUE), 2))
     bb <- sapply(cc, function(c0) { st <- sprintf("I(%s >= %s)", nu, format(c0))
       m <- tryCatch(lmx(f_da_termini(yv, c(t_base, sel, add, st, paste0(fa, ":", st))), data = d), error = function(e) NULL)
-      if (is.null(m) || any(is.na(coef(m)))) Inf else BIC(m) })
+      if (is.null(m) || any(is.na(coef(m)))) Inf else d_sbc(m, m0, de) })
     if (!any(is.finite(bb))) next
-    k <- which.min(bb); db <- bb[k] - b0
-    if (db < -10 - log(n)) {
+    k <- which.min(bb); db <- bb[k]
+    if (db < -10 - log(n / de)) {
       st <- sprintf("I(%s >= %s)", nu, format(cc[k])); add <- c(add, st, paste0(fa, ":", st))
       registra(F, "2.6", paste("soglia nell'interazione", it), sprintf("%s >= %s: dSBC=%.1f", nu, format(cc[k]), db),
                "gradino dell'effetto di una x in un gruppo; soglia cercata sui quantili 10-90%, accettata se dSBC < -10 - ln(n)",
@@ -1029,14 +1038,14 @@ interazioni <- function(d, yv, t_base, x, cfg) {
   # estrapolava sui film piu' costosi (R2 fuori campione negativo)
   forma_it <- function(v) { tv <- tb[sapply(tb, function(tt) identical(var_base(tt), v)) & !grepl(":", tb)]
     if (length(tv) == 1 && !grepl("\\^", tv)) tv else v }
-  aic0 <- AIC(m); bic0 <- BIC(m)
+  aic0 <- AIC(m); de <- deff_gruppi(m)
   # per ogni coppia provo la forma dell'effetto principale e quella grezza e tengo la migliore per SBC
   # (calcestruzzo: eta':legante grezza batte log(eta'):legante; film: anno:log(budget) batte anno:budget)
   tab <- do.call(rbind, lapply(seq_len(ncol(cp)), function(j) {
     var_it <- unique(c(paste(sapply(cp[, j], forma_it), collapse = ":"), paste(cp[, j], collapse = ":")))
     alt <- do.call(rbind, lapply(var_it, function(it) { mi <- lmx(f_da_termini(yv, c(t_base, it)), data = d)
       data.frame(interazione = it, parametri_in_piu = length(coef(mi)) - length(coef(m)),
-                 coef_NA = sum(is.na(coef(mi))), dAIC = AIC(mi) - aic0, dSBC = BIC(mi) - bic0) }))
+                 coef_NA = sum(is.na(coef(mi))), dAIC = AIC(mi) - aic0, dSBC = d_sbc(mi, m, de)) }))
     alt <- alt[order(alt$coef_NA > 0, alt$dSBC), ]
     # due forme valide: decide la convalida (RMSE sulla scala di lavoro). L'SBC in-sample non vede
     # l'estrapolazione: con log(y), anno:budget grezzo vinceva per SBC ma esplodeva sui film nuovi (R2 -0,25)
@@ -1068,10 +1077,12 @@ interazioni <- function(d, yv, t_base, x, cfg) {
 # ---------------------------------------------------------------------
 # FASE 3 - MODEL SELECTION (stepwise AIC/SBC + approccio ibrido)
 # ---------------------------------------------------------------------
-ibrido_lm <- function(m, alpha = 0.05) {
+ibrido_lm <- function(m, alpha = 0.05, deff = 1) {
   tolti <- character()
   repeat {
     a <- drop1(m, test = "F"); a <- a[-1, , drop = FALSE]; a <- a[!is.na(a$`Pr(>F)`), , drop = FALSE]
+    # con unita' ripetute l'F conta le righe: lo si riporta all'informazione effettiva
+    if (deff > 1 && nrow(a)) a$`Pr(>F)` <- pf(a$`F value` / deff, a$Df, df.residual(m) / deff, lower.tail = FALSE)
     t_att <- termini(m)
     # gerarchia: non tolgo x se resta un suo termine di ordine superiore (x^2, x:z)
     protetti <- sapply(rownames(a), function(tt) any(sapply(setdiff(t_att, tt), function(o)
@@ -1097,10 +1108,13 @@ completa_gerarchia <- function(m) {
 
 selezione <- function(m_full, d) {
   F <- "3_selezione"; reset_fase(F)
-  n <- nobs(m_full); mse <- summary(m_full)$sigma^2
-  s_aic <- completa_gerarchia(stepAIC(m_full, direction = "both", trace = 0))
-  s_sbc <- completa_gerarchia(stepAIC(m_full, direction = "both", k = log(n), trace = 0))
-  ib <- ibrido_lm(s_aic)
+  n <- nobs(m_full); mse <- summary(m_full)$sigma^2; de <- deff_gruppi(m_full)
+  # dividere la devianza per deff equivale a moltiplicare la penalita' per deff
+  s_aic <- completa_gerarchia(stepAIC(m_full, direction = "both", k = 2 * de, trace = 0))
+  s_sbc <- completa_gerarchia(stepAIC(m_full, direction = "both", k = de * log(n / de), trace = 0))
+  if (de > 1) registra(F, "3.0", "unita' ripetute nella selezione", sprintf("effetto del disegno %.1f: informazione di circa %d osservazioni indipendenti su %d righe", de, round(n / de), n),
+                       "le righe della stessa unita' non sono indipendenti: AIC, SBC e test F contano l'informazione effettiva", "penalita' moltiplicate per deff", "AUTO")
+  ib <- ibrido_lm(s_aic, deff = de)
   tab <- rbind(completo = criteri_lm(m_full, mse), stepAIC_AIC = criteri_lm(s_aic, mse),
                stepAIC_SBC = criteri_lm(s_sbc, mse), ibrido = criteri_lm(ib$m, mse))
   salva_tab(round(tab, 4), "3_confronto_criteri")
@@ -1180,6 +1194,18 @@ influenza <- function(m, d, yv, cfg) {
       } else registra(F, "4.3a", "influenti da una sola coda", sprintf("%.0f%% dallo stesso lato", 100 * max(q_pos, 1 - q_pos)),
                  "eliminarli distorce la media prevista", "eliminati per scelta dell'utente: controllare la distorsione in verifica", "UTENTE")
     }
+  }
+  # influenti in prevalenza dallo stesso lato anche con la media poco spostata: forse una coda del fenomeno che le
+  # x non descrivono (studenti che crollano: 0,048 sd, 51 negativi su 74). Non si cambia il default: tenerli ha
+  # aiutato in energia e calcestruzzo, peggiorato in California, studenti e film (lezioni 120, 129, 130). Lo si
+  # segnala al checkpoint B; il percorso fuori campione (9.1d, proposta fino_a) mostra quanto pesa il passo 4
+  if (is.null(cfg$decisioni$influenti) && strat != "nessuna" && sum(via) >= 20) {
+    q_pos <- mean(residuals(m)[via] > 0); lato <- max(q_pos, 1 - q_pos)
+    if (binom.test(sum(residuals(m)[via] > 0), sum(via))$p.value < 0.01)      # test, non una quota fissa
+      registra(F, "4.3e", "influenti dallo stesso lato", sprintf("%d osservazioni (%.1f%%) con criterio %s; %.0f%% con residuo %s (test binomiale p < 0,01)",
+               sum(via), 100 * mean(via), strat, 100 * lato, if (q_pos > 0.5) "positivo" else "negativo"),
+               "in prevalenza dallo stesso lato: forse una coda del fenomeno, non errori",
+               "eliminati (default); se descrivono un gruppo che interessa (chi crolla, chi ha risorse naturali) provare decisioni.influenti = 'nessuna' e confrontare in verifica", "PROPOSTA")
   }
   pct <- 100 * mean(via)
   registra(F, "4.3", "eliminazione influenti", sprintf("%d osservazioni (%.1f%%) con criterio %s", sum(via), pct, strat),
@@ -1319,6 +1345,8 @@ effetti_originali <- function(m, dd, lambda, Bmat = NULL, x_orig) {
     st_n <- mean(yinv_naive(Xa %*% b, lambda) - yinv_naive(Xb %*% b, lambda))
     rapp <- if (is.finite(st_n) && abs(st_n) > 1e-12) st / st_n else 1
     bt <- colMeans(yinv_naive(Ea, lambda) - yinv_naive(Eb, lambda)) * rapp
+    bt <- bt[is.finite(bt)]                     # repliche con coefficienti NA (un caso con leva ~1 non estratto)
+    if (length(bt) < 20) return(c(effetto = st, IC_2.5 = NA, IC_97.5 = NA))
     c(effetto = st, quantile(bt, c(.025, .975)))
   }
   out <- list()
@@ -1566,6 +1594,7 @@ logistica <- function(dL, y, x, cfg, interazioni_lin = character(), R_boot = 999
   ci <- tryCatch(suppressMessages(confint(gL)), error = function(e) confint.default(gL))
   or <- data.frame(b = coef(gL), OR = exp(coef(gL)), OR_2.5 = exp(ci[, 1]), OR_97.5 = exp(ci[, 2]),
                    p_Wald = summary(gL)$coefficients[, 4])
+  if ("(Intercept)" %in% rownames(or)) or["(Intercept)", c("OR", "OR_2.5", "OR_97.5")] <- NA   # senza significato
   # OR per incrementi non unitari (corso): stesso incremento usato per gli effetti marginali
   or$incremento <- NA_real_; or$OR_incremento <- NA_real_; or$OR_inc_2.5 <- NA_real_; or$OR_inc_97.5 <- NA_real_
   for (k in rownames(or)) if (k %in% names(dL) && is.numeric(dL[[k]])) {
@@ -1794,6 +1823,20 @@ dividi <- function(d, cfg) {
     modo <- "temporale"
     descr <- sprintf("costruzione: %d righe del periodo < %s (su %d); verifica stessa epoca: %d; verifica futuro (>= %s): %d",
                      length(build), format(taglio), length(passato), length(val$stessa_epoca), format(taglio), length(val$futuro))
+  } else if (!is.null(.RM$gruppi) && n / length(unique(gruppi_di(rownames(d)))) >= 3 &&
+             (function() { g <- gruppi_di(rownames(d)); length(unique(g)) - opp * p < max(50, 0.2 * length(unique(g))) })()) {
+    # pannello (3+ righe per unita'): il campione si misura in unita', non in righe. Energia: 2.000 righe
+    # erano 101 paesi su 174, e aggiungere paesi abbassava l'errore dell'11% (lezione 127). Se le unita' non
+    # bastano per 40 unita' per parametro piu' una verifica, si usano tutte con la convalida della procedura
+    # per unita' (fold_di tiene insieme le righe di un'unita')
+    build <- seq_len(n); modo <- "cv"
+    descr <- sprintf("%d unita' ripetute (%.0f righe per unita'): troppo poche per dividere (%d parametri candidati x %d unita'); si costruisce su tutte e la precisione si stima con la convalida della procedura per unita'",
+                     length(unique(gruppi_di(rownames(d)))), n / length(unique(gruppi_di(rownames(d)))), p, opp)
+  } else if (!is.null(.RM$gruppi) && n / length(unique(gruppi_di(rownames(d)))) >= 3) {
+    # pannello con molte unita': si estraggono 40 unita' per parametro, il resto e' verifica su unita' mai viste
+    g <- gruppi_di(rownames(d)); u <- sample(unique(g)); ub <- head(u, opp * p)
+    build <- which(g %in% ub); i <- cap(setdiff(seq_len(n), build)); val$verifica <- i
+    modo <- "casuale"; descr <- sprintf("costruzione: %d righe (%d unita' intere, %d per parametro); verifica: %d righe di unita' mai viste", length(build), length(ub), opp, length(i))
   } else if (!is.null(.RM$gruppi) && n - n_t >= max(1000, 0.2 * n)) {
     # per unita': si estraggono unita' intere fino a circa n_t righe
     g <- gruppi_di(rownames(d)); u <- sample(unique(g)); cum <- cumsum(table(g)[u]); ub <- u[cum <= n_t]
@@ -1815,6 +1858,16 @@ dividi <- function(d, cfg) {
     build <- seq_len(n); modo <- "cv"
     descr <- sprintf("n = %d troppo piccolo per dividere (%.0f oss. per parametro candidato): si costruisce su tutto e la precisione si stima con la convalida incrociata della procedura", n, n / p)
   }
+  # pannello in cui y cambia quasi solo tra unita': la domanda e' sulle differenze tra unita', e un'unita'
+  # per riga (media nel periodo) toglie le righe ripetute alla radice (energia: MAE 15,4 -> 11,1, lezione 128)
+  if (!is.null(.RM$gruppi)) { g <- gruppi_di(rownames(d))
+    if (n / length(unique(g)) >= 3) {
+      a <- tryCatch(anova(lm(d[[y]] ~ factor(g))), error = function(e) NULL)
+      q_tra <- if (is.null(a)) NA else a[1, 2] / sum(a[, 2])
+      if (is.finite(q_tra) && q_tra > 0.9)
+        registra(F, "0.0b", "y cambia quasi solo tra unita'", sprintf("%.0f%% della varianza di y e' tra unita'", 100 * q_tra),
+                 "le righe della stessa unita' ripetono quasi la stessa y: per spiegare le differenze tra unita' basta una riga per unita'",
+                 "PROPOSTA: aggregare per unita' (media del periodo) in un file a parte; per prevedere gli anni futuri serve invece il valore precedente di y", "PROPOSTA") } }
   # copertura dei livelli (minimum allocation): un livello frequente nel dataset intero ma raro nel campione
   # (diamanti: I1 = 1,4% di 54.000 pietre, ma 28 nelle 2.000 di costruzione) viene integrato con righe in piu'
   # di quel livello, prese da quelle non usate. Selezionare sulle x non distorce l'OLS non pesato
@@ -1823,7 +1876,7 @@ dividi <- function(d, cfg) {
   fat <- setdiff(names(d)[sapply(d, function(z) (is.character(z) || is.factor(z) || is.logical(z)) &&
                                    length(unique(z)) <= max(2, 0.3 * n))], c(y, ".tempo", ".w"))
   conteggi <- lapply(d[fat], function(z) table(as.character(z)))
-  if (modo != "cv" && length(fat)) {
+  if (modo != "cv" && length(fat) && is.null(.RM$gruppi)) {   # con unita' ripetute si aggiungerebbero righe, non unita' intere
     pool <- setdiff(if (modo == "temporale") passato else seq_len(n), build); aggiunte <- character(); n_agg <- 0
     for (v in fat) {
       tb <- table(factor(as.character(d[[v]][build]), levels = names(conteggi[[v]])))
@@ -1930,6 +1983,24 @@ righe_doppie <- function(d) {
 
 # gruppo (unita') di ogni riga, se definito
 gruppi_di <- function(rn) { g <- .RM$gruppi; if (is.null(g)) NULL else { x <- g[rn]; x[is.na(x)] <- rn[is.na(x)]; unname(x) } }
+# effetto del disegno con unita' ripetute: le righe della stessa unita' ripetono in gran parte la stessa
+# informazione (energia: 20 anni quasi identici per paese). deff = 1 + (m - 1) * ICC dei residui, m = righe
+# per unita'. Le penalita' di selezione si calcolano sull'informazione effettiva n / deff: con le righe
+# contate come indipendenti entravano cubi e interazioni che inseguivano singoli paesi (lezione 128).
+# Sotto deff 2 (calcestruzzo: 2,5 prove per miscela) si resta sulle righe
+deff_gruppi <- function(m) {
+  r <- residuals(m); g <- gruppi_di(names(r)); if (is.null(g)) return(1)
+  mm <- length(r) / length(unique(g)); if (mm < 1.5) return(1)
+  a <- tryCatch(anova(lm(r ~ factor(g))), error = function(e) NULL); if (is.null(a)) return(1)
+  msb <- a[1, 3]; msw <- a[2, 3]; icc <- max(0, (msb - msw) / (msb + (mm - 1) * msw))
+  de <- 1 + (mm - 1) * icc; if (de < 2) 1 else de
+}
+# differenza di SBC calcolata sull'informazione effettiva (con deff = 1 e' BIC(m1) - BIC(m0))
+d_sbc <- function(m1, m0, deff = 1) {
+  n <- nobs(m0); dk <- attr(logLik(m1), "df") - attr(logLik(m0), "df")
+  ddev <- (BIC(m1) - BIC(m0)) - dk * log(n)
+  ddev / deff + dk * log(n / deff)
+}
 # fold della convalida: per unita' se c'e' un gruppo (tutte le righe di un'unita' nello stesso fold)
 fold_di <- function(rn, K) { g <- gruppi_di(rn)
   if (is.null(g)) return(sample(rep_len(seq_len(K), length(rn))))
@@ -2491,6 +2562,37 @@ diagnosi_tetto <- function(st, div, cfg, cvr = NULL) {
       }
     }
   }
+  # (a2) boosting sulle stesse x (facoltativo, se xgboost e' installato): coglie da solo forme e interazioni di
+  # ogni ordine. Se nemmeno lui fa meglio, il limite sono i dati (studenti: boosting 0,305 contro 0,319 del
+  # lineare, lezione 121); se fa molto meglio, c'e' struttura che il modello lineare non vede (fase ML)
+  if (length(x) && !is.null(val) && requireNamespace("xgboost", quietly = TRUE)) {
+    ok <- complete.cases(val[c(x, y)]); vv <- val[ok, ]
+    tutto <- rbind(d2[x], vv[x]); for (v in names(tutto)) if (is.character(tutto[[v]])) tutto[[v]] <- factor(tutto[[v]])
+    mm <- tryCatch(model.matrix(~ . - 1, tutto), error = function(e) NULL)
+    if (!is.null(mm) && nrow(mm) == nrow(tutto) && nrow(vv) >= 30) {
+      itr <- seq_len(nrow(d2)); ite <- nrow(d2) + seq_len(nrow(vv)); yb <- d2[[y]]
+      obj <- if (identical(cfg$metrica, "media")) "reg:squarederror" else "reg:absoluteerror"
+      set.seed(cfg$seed %||% 1234)
+      b <- tryCatch(xgboost::xgboost(x = mm[itr, , drop = FALSE], y = yb, nrounds = 400, learning_rate = 0.03, max_depth = 4, subsample = 0.8,
+                                     colsample_bytree = 0.8, min_child_weight = 10, objective = obj, nthreads = 1),
+                    error = function(e) tryCatch(xgboost::xgboost(data = mm[itr, , drop = FALSE], label = yb, nrounds = 400, eta = 0.03, max_depth = 4,
+                                     subsample = 0.8, colsample_bytree = 0.8, min_child_weight = 10, objective = obj, verbose = 0, nthread = 1),
+                                     error = function(e) NULL))
+      pb <- if (is.null(b)) NULL else tryCatch(as.numeric(predict(b, mm[ite, , drop = FALSE])), error = function(e) NULL)
+      if (!is.null(pb)) {
+        pl <- yinv(prevedi_sicuro(st$fit4, vv), lam, residuals(st$fit4))
+        med_c <- median(st$d2[[y]]); mean_c <- mean(st$d2[[y]])
+        mb <- metriche_reg(vv[[y]], pb, med_c, mean_c); ml <- metriche_reg(vv[[y]], pl, med_c, mean_c)
+        out$boost <- rbind(modello_finale = ml, boosting = mb); salva_tab(round(out$boost, 4), "9_tetto_boosting")
+        dMAE <- 1 - mb[["MAE"]] / ml[["MAE"]]
+        registra(F, "9.5b", "confronto con il boosting", sprintf("boosting (xgboost) sulle stesse x: R2 fuori campione %.3f contro %.3f del modello finale; MAE %+.1f%%",
+                 mb[["R2_fuori_campione"]], ml[["R2_fuori_campione"]], -100 * dMAE),
+                 "il boosting trova da solo forme e interazioni: e' il tetto pratico con queste x",
+                 if (dMAE < 0.03) "neanche il boosting fa meglio: per prevedere di piu' servono altri dati, non un altro modello"
+                 else "il boosting prevede meglio: ci sono forme o interazioni che il lineare non vede (fase machine learning)", "AUTO")
+      }
+    }
+  }
   # (b) errore relativo tipico
   if (!is.null(val)) {
     p <- yinv(prevedi_sicuro(st$fit4, val), lam, residuals(st$fit4)); yy <- val[[y]]; k <- !is.na(p) & yy > 0
@@ -2524,7 +2626,10 @@ diagnosi_tetto <- function(st, div, cfg, cvr = NULL) {
       dv <- applica_stato(dA, st); eta <- prevedi_sicuro(st$fit4, dv)
       r <- ytrasf(dv[[y]], lam) - eta; names(r) <- rownames(dv)
       righe <- list()
-      for (v in intersect(esc, names(raw))) {
+      # la colonna che definisce le unita' non si propone: la verifica e' su unita' mai viste, per le quali
+      # l'effetto di gruppo non esiste (energia: "Entity spiega il 57% dei residui", lezione 128)
+      v_gr <- if (!is.null(cfg$gruppo) && nzchar(cfg$gruppo)) tryCatch(all.vars(parse(text = cfg$gruppo)), error = function(e) character()) else character()
+      for (v in setdiff(intersect(esc, names(raw)), v_gr)) {
         z <- raw[rownames(dv), v]; if (!is.character(z) && !is.factor(z)) next
         z <- as.character(z); lista <- mean(grepl(",", z), na.rm = TRUE) > 0.3
         if (lista) z <- trimws(sub(",.*", "", z))                    # lista (attori, paesi): il primo nome

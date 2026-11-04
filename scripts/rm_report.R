@@ -246,7 +246,7 @@ verdetto_binaria <- function(sc, y, vl) {
             round(100 * ini[["acc_0.5"]]), round(100 * fin[["acc_0.5"]]), if (q < 0.5) paste(h(y), "= 0") else paste(h(y), "= 1"), round(100 * acc_n)) else
     sprintf("<p><strong>Su 100 casi mai visti ne classifica correttamente %s.</strong> Rispondendo sempre \"%s\" (la risposta piu' frequente) se ne indovinerebbero %s. Il modello iniziale (tutte le variabili) ne indovinava %s.</p>",
             round(100 * fin[["acc_0.5"]]), if (q < 0.5) paste(h(y), "= 0") else paste(h(y), "= 1"), round(100 * acc_n), round(100 * ini[["acc_0.5"]])),
-    sprintf("<p><strong>Quanto distingue:</strong> AUC %s, capacita' <strong>%s</strong>: preso a caso un caso con %s = 1 e uno con %s = 0, nel %s%% delle coppie il modello da' al primo una probabilita' piu' alta.</p>",
+    sprintf("<p><strong>Quanto distingue:</strong> AUC %s, potere di distinzione <strong>%s</strong>: preso a caso un caso con %s = 1 e uno con %s = 0, nel %s%% delle coppie il modello da' al primo una probabilita' piu' alta.</p>",
             fmt(auc), giudizio_auc(auc), h(y), h(y), round(100 * auc)),
     sprintf("<p><strong>Modello consegnato: %s.</strong> %s.</p>", sc$chi, h(maiusc(sc$motivo))),
     "<p class='cap'>Il confronto tra modelli usa l'errore di Brier (quanto le probabilita' previste sono vicine a cio' che succede), piu' stabile della percentuale di classificati; classificare bene e' tema della fase di machine learning.</p>",
@@ -277,6 +277,9 @@ report_iniziale <- function(fit0, d, cfg, div = NULL, fo = NULL) {
   box <- character()
   if (!is.null(fo)) box <- if (isTRUE(fo$binaria)) c("<div class='verdetto'><h2>Quanto prevede gia' il modello iniziale</h2>",
       sprintf("<p><strong>Su 100 casi mai visti ne classifica correttamente %s.</strong> Rispondendo sempre con la classe piu' frequente se ne indovinerebbero %s.</p>", round(100 * fo$acc), round(100 * fo$acc_naive)),
+      if (!is.null(fo$met) && is.finite(fo$met[["AUC"]]))
+        sprintf("<p><strong>Quanto distingue:</strong> AUC %s, potere di distinzione <strong>%s</strong>. Brier skill %s: le probabilita' previste migliorano del %s%% rispetto a dare a tutti la stessa probabilita'.</p>",
+                fmt(fo$met[["AUC"]]), giudizio_auc(fo$met[["AUC"]]), fmt(fo$met[["Brier_skill"]]), round(100 * fo$met[["Brier_skill"]])),
       sprintf("<p>E' il numero da battere: il report finale lo confronta, sugli stessi casi mai visti, con il modello finale. Misurato su %s (%s casi).</p>", h(fo$dove), n_it(fo$n)),
       "<p class='cap'>I numeri piu' sotto (pseudo-R&sup2;, coefficienti) sono calcolati sui dati usati per stimare il modello: descrivono il modello, non servono a confrontarlo con il finale.</p></div>", leggi_numeri(TRUE)) else
     c("<div class='verdetto'><h2>Quanto prevede gia' il modello iniziale</h2>",
@@ -287,7 +290,8 @@ report_iniziale <- function(fit0, d, cfg, div = NULL, fo = NULL) {
   if (y_binaria(d[[y]], cfg)) {           # y binaria: il termine di confronto e' una logistica con tutte le x
     fit0 <- suppressWarnings(glm(formula(fit0), data = model.frame(fit0), family = binomial))
     s <- summary(fit0); ct <- as.data.frame(s$coefficients); names(ct) <- c("b (logit)", "SE", "z", "p"); ct$termine <- rownames(ct)
-    ct$OR <- exp(ct[["b (logit)"]]); ct <- ct[, c("termine", "b (logit)", "OR", "SE", "z", "p")]
+    ct$OR <- exp(ct[["b (logit)"]]); ct$OR[ct$termine == "(Intercept)"] <- NA   # l'OR dell'intercetta non ha significato
+    ct <- ct[, c("termine", "b (logit)", "OR", "SE", "z", "p")]
     mcf <- 1 - fit0$deviance / fit0$null.deviance
     tt <- ct[ct$termine != "(Intercept)", ]; tt <- head(tt[order(-abs(tt$z)), ], 25)
     png_r("01_t_iniziale", 9, max(3, .26 * nrow(tt) + 1))
@@ -460,7 +464,7 @@ report_binaria <- function(st, lo, vl, cfr, cfg) {
     g0 <- sc$modello0 %||% lo$g_full; s0 <- summary(g0)$coefficients
     corpo <- c(corpo, "<h2>Modello consegnato: l'iniziale</h2><p>Logistica con tutte le variabili candidate, cosi' come sono (lo stesso modello del report 1), stimata su tutte le righe con i mancanti imputati: sui dati mai visti prevede meglio (o uguale, ed e' piu' semplice) del modello finale descritto piu' sotto. Coefficienti con errori standard enormi (centinaia) indicano separazione: quel coefficiente non e' interpretabile, anche se il modello prevede bene.</p>",
                sprintf("<p><code>%s</code></p>", h(paste(deparse(formula(g0), width.cutoff = 500), collapse = " "))),
-               "<div class='scroll'>", tab_html(data.frame(termine = rownames(s0), b = s0[, 1], OR = exp(s0[, 1]), SE = s0[, 2], p = s0[, 4], check.names = FALSE)), "</div>",
+               "<div class='scroll'>", tab_html(data.frame(termine = rownames(s0), b = s0[, 1], OR = ifelse(rownames(s0) == "(Intercept)", NA, exp(s0[, 1])), SE = s0[, 2], p = s0[, 4], check.names = FALSE)), "</div>",
                "<h2 style='color:var(--muted)'>Il modello finale esaminato (non consegnato)</h2>")
   }
   if (!is.null(vl)) {

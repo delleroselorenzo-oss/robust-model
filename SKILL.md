@@ -27,7 +27,7 @@ Non c'è fretta: la qualità viene prima dei tempi. Le correzioni alla libreria 
 
 ## 0. Recuperare gli script e preparare R
 
-File: `scripts/` (`rm_lib.R`, `rm_run.R`, `rm_report.R`, `rm_suite.R`, `config_template.json`), `collaudi/` (config dei collaudi + `riferimento.json`), `data/` (dataset dei collaudi), `references/` (`regole_e_soglie.md`, `lezioni_apprese.md`). La fonte e' il repository https://github.com/delleroselorenzo-oss/robust-model: se la cartella della skill non li contiene, si clona il repository e si copia `scripts/` in `mr/`.
+File: `scripts/` (`rm_lib.R`, `rm_run.R`, `rm_report.R`, `rm_suite.R`, `config_template.json`), `collaudi/` (config dei collaudi + `riferimento.json`), `data/` (dataset dei collaudi), `references/` (`regole_e_soglie.md`, `lezioni_apprese.md`). La fonte e' il repository https://github.com/delleroselorenzo-oss/robust-model: se la cartella della skill non li contiene, si clona il repository e si copia `scripts/` in `mr/`; se il clone non è possibile (nessuna rete), si cercano nel Project o si chiede di allegarli.
 
 **Leggere sempre `lezioni_apprese.md` prima del checkpoint A.**
 

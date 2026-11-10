@@ -1603,6 +1603,10 @@ logistica <- function(dL, y, x, cfg, interazioni_lin = character(), R_boot = 999
     peggiore <- names(seL)[which.max(seL)]
     tt <- termini(gL); via <- tt[sapply(tt, function(t) startsWith(peggiore, t) || startsWith(peggiore, sub(":.*", "", t)))][1]
     if (is.na(via)) break
+    # gerarchia: se la x ha potenze piu' alte (x^2, x^3) si semplifica la forma togliendo la piu' alta, mai il
+    # termine lineare lasciando le potenze (studenti, media G1-G2: restavano solo (x - 11)^2 e (x - 11)^3, lezione 138)
+    fam <- tt[!grepl(":", tt) & sapply(tt, function(t) identical(var_base(t), var_base(via)))]
+    if (length(fam) > 1) via <- fam[which.max(sapply(fam, grado))]
     gL <- suppressWarnings(update(gL, as.formula(paste(". ~ . -", via))))
     registra(F, "L.4", paste("termine tolto per quasi-separazione", via), sprintf("SE %.1f", max(seL)),
              "SE > 5: la stima non e' affidabile", "tolto e modello ristimato", "AUTO")

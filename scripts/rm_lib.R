@@ -415,6 +415,7 @@ profilo <- function(d, y = NULL, ordinato = FALSE) {
 # ---------------------------------------------------------------------
 # parte deterministica: regole che non guardano i dati (si applica a tutto, prima della divisione)
 prepara_base <- function(d, cfg) {
+  .RM$ausiliarie <- setdiff(unlist(cfg$ausiliarie), cfg$y)
   y <- cfg$y; F <- "0_preparazione"; reset_fase(F)
   n_in <- nrow(d)
   if (!is.null(cfg$codice_preparazione) && nzchar(cfg$codice_preparazione)) {
@@ -550,10 +551,15 @@ prepara_apprendi <- function(d, cfg) {
              "categoria ad alta cardinalita': media di gruppo ristretta (empirical Bayes), calcolata fuori fold in costruzione",
              paste("nuova x numerica", nv, "(scarto del gruppo dalla media; gruppi nuovi = 0)"), "UTENTE")
   }
-  # x con > 20% di NA: eliminate (regola del corso)
-  pna <- sapply(d, function(x) mean(is.na(x))); via <- setdiff(names(pna)[pna > 0.20], y)
+  # x con > 20% di NA: eliminate (regola del corso); soglie.na_max la cambia (es. mancanti casuali da imputare)
+  na_max <- cfg$soglie$na_max %||% 0.20
+  pna <- sapply(d, function(x) mean(is.na(x))); via <- setdiff(names(pna)[pna > na_max], y)
   if (length(via)) { d[via] <- NULL
-    registra(F, "0.8", "x con NA > 20%", paste(via, collapse = ", "), "NA > 20% -> elimino la x", "eliminate") }
+    registra(F, "0.8", sprintf("x con NA > %.0f%%", 100 * na_max), paste(via, collapse = ", "),
+             sprintf("NA > %.0f%% -> elimino la x", 100 * na_max), "eliminate") }
+  tenute_na <- setdiff(names(pna)[pna > 0.20 & pna <= na_max], y)
+  if (length(tenute_na)) registra(F, "0.8", "x con NA > 20% tenute e imputate", paste(tenute_na, collapse = ", "),
+             sprintf("soglia alzata a %.0f%% dall'utente (mancanti giudicati casuali)", 100 * na_max), "imputate", "UTENTE")
   # costanti
   cost <- setdiff(names(d)[sapply(d, function(x) length(unique(x[!is.na(x)])) <= 1)], y)
   if (length(cost)) { d[cost] <- NULL
@@ -656,7 +662,7 @@ imputa <- function(d, y, metodo = "mice", seed = 500, per_gruppo = NULL) {
 
 # il modello iniziale usa solo le righe complete: un fattore puo' restarvi con un solo livello
 x_iniziali <- function(d, y) {
-  x <- setdiff(names(d), c(y, ".w")); cc <- complete.cases(d[c(y, x)])
+  x <- setdiff(names(d), c(y, ".w", .RM$ausiliarie)); cc <- complete.cases(d[c(y, x)])   # le ausiliarie servono solo a mice
   x[!sapply(x, function(v) is.factor(d[[v]]) && nlevels(droplevels(d[[v]][cc])) < 2)]
 }
 modello_iniziale <- function(d, y) {
@@ -932,6 +938,8 @@ trasforma_x <- function(d, yv, x, cfg) {
   num <- x[sapply(d[x], function(z) is.numeric(z) && length(unique(z)) >= 5)]
   termini_x <- setNames(as.list(x), x)                 # ogni x -> vettore di termini
   if (!length(num)) return(list(termini = termini_x, tab = NULL))
+  asim <- function(z) { s0 <- sd(z); if (!isTRUE(s0 > 0)) 0 else mean((z - mean(z))^3) / s0^3 }
+  skew <- num[sapply(num, function(v) min(d[[v]]) >= 0 && asim(d[[v]]) > 2)]   # x >= 0 con coda lunga (lezione 134)
   if (requireNamespace("mgcv", quietly = TRUE)) {
     altri <- setdiff(x, num)
     sm <- sapply(num, function(v) { k <- min(10, length(unique(d[[v]])) - 1); paste0("s(", v, ", k=", k, ")") })
@@ -939,6 +947,19 @@ trasforma_x <- function(d, yv, x, cfg) {
     g <- tryCatch(mgcv::gam(fg, data = d, method = "REML", weights = if (".w" %in% names(d)) d$.w else NULL), error = function(e) NULL)
     if (!is.null(g)) {
       st <- summary(g)$s.table; edf <- setNames(st[, "edf"], num); pg <- setNames(st[, "p-value"], num)
+      # x >= 0 molto asimmetriche (conteggi con coda lunga): sulla scala grezza il GAM schiaccia la coda e vede
+      # una retta (assenze: edf 1,0, p 0,58). Rifaccio il GAM con s(log(x + 1)) e tengo il segnale piu' forte (lezione 134)
+      if (length(skew)) {
+        sm2 <- sapply(num, function(v) { k <- min(10, length(unique(d[[v]])) - 1)
+          if (v %in% skew) paste0("s(log(", v, " + 1), k=", k, ")") else paste0("s(", v, ", k=", k, ")") })
+        g2 <- tryCatch(mgcv::gam(as.formula(paste(yv, "~", paste(c(altri, sm2), collapse = " + "))), data = d, method = "REML",
+                                 weights = if (".w" %in% names(d)) d$.w else NULL), error = function(e) NULL)
+        if (!is.null(g2)) { st2 <- summary(g2)$s.table
+          for (i in which(num %in% skew)) if (st2[i, "p-value"] < pg[num[i]]) {
+            registra(F, "2.4", paste("forma di", num[i], "su scala log"), sprintf("GAM su log(x + 1): edf %.1f, p %.2g (scala grezza: edf %.1f, p %.2g)",
+                     st2[i, "edf"], st2[i, "p-value"], edf[num[i]], pg[num[i]]), "x molto asimmetrica: il GAM sulla scala grezza schiaccia la coda",
+                     "valuto le forme candidate", "AUTO")
+            pg[num[i]] <- st2[i, "p-value"]; edf[num[i]] <- max(edf[num[i]], st2[i, "edf"]) } } }
       salva_tab(round(st, 4), "2_gam_edf")
       png_apri("2_gam_componenti", 11, 7)
       plot(g, pages = 1, se = TRUE, shade = TRUE, residuals = FALSE)
@@ -951,6 +972,10 @@ trasforma_x <- function(d, yv, x, cfg) {
   pot <- function(v, cc, k) if (cc == 0) paste0("I(", v, "^", k, ")") else paste0("I((", v, " - ", cc, ")^", k, ")")
   costruisci <- function(v, tipo) switch(tipo,
     lin = v, log = if (min(d[[v]]) > 0) paste0("log(", v, ")") else paste0("log(", v, " + ", 1 - min(d[[v]]), ")"),
+    # log + log^2: curva che sale e poi scende su una x con coda lunga (assenze); zero_log: massa di zeri
+    # che si comporta come un gruppo a se' (conteggi: 0 = "mai", spesso un altro fenomeno) + log per il resto
+    log2 = { lt <- if (min(d[[v]]) > 0) paste0("log(", v, ")") else paste0("log(", v, " + ", 1 - min(d[[v]]), ")"); c(lt, paste0("I(", lt, "^2)")) },
+    zero_log = c(paste0("I(", v, " == 0)"), paste0("log(", v, " + 1)")),
     # potenze di una x lontana da zero (anno ~ 2000: anno^3 ~ 8e9) vanno centrate, altrimenti x, x^2 e x^3
     # sono collineari quasi alla perfezione (SE HC3 NaN, bootstrap in disaccordo: Spotify)
     poly2 = { cc <- centro(d[[v]]); c(v, pot(v, cc, 2)) }, poly3 = { cc <- centro(d[[v]]); c(v, pot(v, cc, 2), pot(v, cc, 3)) },
@@ -963,19 +988,24 @@ trasforma_x <- function(d, yv, x, cfg) {
     moda <- as.numeric(names(which.max(table(d[[v]]))))
     if (mean(d[[v]] == moda) > 0.8) {                   # x quasi sempre uguale: binning, non polinomi
       tipi <- c("lin", "bin")
-    } else tipi <- c("lin", "poly2", "poly3", if (min(d[[v]]) >= 0) c("log", "sqrt"))
+    } else tipi <- c("lin", "poly2", "poly3", if (min(d[[v]]) >= 0) c("log", "sqrt"),
+                     # forme per le x con coda lunga: curva su scala log, zeri come gruppo a se' (lezione 134)
+                     if (v %in% skew) "log2", if (v %in% skew && min(d[[v]]) == 0 && mean(d[[v]] == 0) >= 0.10) "zero_log")
     aics <- sapply(tipi, function(tp) { tt <- termini_x; tt[[v]] <- costruisci(v, tp)
       AIC(lmx(f_da_termini(yv, unlist(tt)), data = d)) })
     # preferisco la forma piu' semplice se entro 2 punti di AIC dalla migliore
-    semplicita <- c(lin = 1, bin = 1.5, log = 2, sqrt = 2, poly2 = 3, poly3 = 4)[tipi]
+    semplicita <- c(lin = 1, bin = 1.5, log = 2, sqrt = 2, zero_log = 2.5, poly2 = 3, log2 = 3, poly3 = 4)[tipi]
     ok <- tipi[aics <= min(aics) + 2]; scelta <- ok[which.min(semplicita[ok])]
-    dA <- setNames(rep(NA_real_, 6), c("lin", "poly2", "poly3", "log", "sqrt", "bin"))
+    dA <- setNames(rep(NA_real_, 8), c("lin", "poly2", "poly3", "log", "sqrt", "bin", "log2", "zero_log"))
     dA[tipi] <- round(aics - aics["lin"], 1)
     tab <- rbind(tab, data.frame(x = v, edf_gam = round(edf[v], 2), t(dA), scelta = scelta))
     termini_x[[v]] <- costruisci(v, scelta)
     if (scelta != "lin") registra(F, "2.4", paste("trasformazione", v), paste0("edf GAM=", round(edf[v], 1)),
       "forma dal grafico GAM -> parametrica con AIC minimo (la piu' semplice entro 2 punti)",
       paste("uso", paste(termini_x[[v]], collapse = " + ")), "AUTO")
+    if (scelta == "zero_log") registra(F, "2.4", paste("zeri di", v, "come gruppo a se'"), sprintf("%.0f%% di zeri; dAIC %.1f contro log", 100 * mean(d[[v]] == 0), aics["zero_log"] - aics["log"]),
+      "uno zero che conta da solo puo' essere un artefatto di registrazione (lezione 42: chi abbandona ha 0 assenze)",
+      "verificare il significato dello zero prima di interpretare l'effetto", "PROPOSTA")
   }
   if (!is.null(tab)) salva_tab(tab, "2_trasformazioni_x_dAIC")
   list(termini = termini_x, tab = tab)
@@ -1703,9 +1733,10 @@ costruisci_lineare <- function(dp, cfg, completo = TRUE) {
              "funzione di varianza stimata dai residui OLS (FGLS): peso = 1 / varianza stimata",
              if (b == 0) "nessuna relazione tra varianza e n: equivale a OLS" else "WLS con pesi stimati", "AUTO")
   }
+  aa <- separa_ausiliarie(d, cfg); d <- aa$d
   if (completo) { descrittive(d, y); fit0 <- modello_iniziale(d, y) } else
     fit0 <- lmx(f_da_termini(y, x_iniziali(d, y)), data = d)
-  d_imp <- imputa(d, y, cfg$imputazione %||% "mice", per_gruppo = cfg$imputa_per_gruppo)
+  d_imp <- imputa_con_ausiliarie(aa, y, cfg)
   co <- collinearita(d_imp, y, cfg); x1 <- co$x; d1 <- co$d; fit1 <- co$fit
   reset_fase("2_trasformazioni")
   bc <- boxcox_scelta(d1, y, x1, cfg); lambda <- bc$lambda
@@ -1910,6 +1941,40 @@ dividi <- function(d, cfg) {
 # --------------------------------------------------------------------
 # applicare ai dati nuovi cio' che si e' imparato sulla costruzione (senza ristimare nulla: niente leakage)
 # --------------------------------------------------------------------
+# colonne ausiliarie (cfg$ausiliarie): fuori dal modello per scelta di analisi (collinearita', domanda) ma note
+# prima di y, quindi utili a mice per stimare i mancanti delle altre x. `escludi` invece toglie la colonna da
+# tutto, imputazione compresa: e' per cio' che non deve contare (leakage, info successive a y, identificativi).
+# Imputare prima di togliere le variabili conserva l'informazione (lezione 137)
+separa_ausiliarie <- function(d, cfg) {
+  aux <- setdiff(intersect(unlist(cfg$ausiliarie), names(d)), cfg$y)
+  list(d = d[setdiff(names(d), aux)], aux = if (length(aux)) d[aux] else NULL)
+}
+imputa_con_ausiliarie <- function(aa, y, cfg) {
+  met <- cfg$imputazione %||% "mice"; pg <- cfg$imputa_per_gruppo
+  if (is.null(aa$aux) || !any(is.na(aa$d[setdiff(names(aa$d), y)]))) return(imputa(aa$d, y, met, per_gruppo = pg))
+  # imputare PRIMA di togliere le ausiliarie (mice le usa) o DOPO (senza)? Decide la convalida a 10 fold sulla
+  # scala di y, con la metrica guida, sul modello con tutte le x candidate: le ausiliarie si tengono solo se
+  # migliorano oltre il 2% (5% sotto le 300 righe); a parita' vince l'imputazione piu' semplice (lezione 137)
+  vq <- isTRUE(.RM$quiet); .RM$quiet <- TRUE
+  d_dopo <- imputa(aa$d, y, met, per_gruppo = pg)
+  d_prima <- imputa(cbind(aa$d, aa$aux), y, met, per_gruppo = pg)[names(aa$d)]
+  .RM$quiet <- vq
+  mt <- if (identical(cfg$metrica, "media")) "RMSE" else "MAE"
+  bin <- y_binaria(aa$d[[y]], cfg)
+  err <- function(dd) { x <- x_iniziali(dd, y); if (bin) return(NA_real_)
+    tryCatch(cv_scala(lmx(f_da_termini(y, x), dd), dd, y, 1, mt, cfg$seed %||% 1), error = function(e) NA_real_) }
+  e_dopo <- err(d_dopo); e_prima <- err(d_prima)
+  sg <- if (nrow(aa$d) < 300) 0.95 else 0.98
+  usa <- is.finite(e_prima) && is.finite(e_dopo) && e_prima < sg * e_dopo
+  registra("0_preparazione", "0.8b", "imputazione prima o dopo aver tolto le ausiliarie",
+           sprintf("ausiliarie %s; %s in convalida (10 fold, tutte le x): imputando dopo %.4g, imputando prima (con le ausiliarie) %.4g",
+                   paste(names(aa$aux), collapse = ", "), mt, e_dopo, e_prima),
+           sprintf("le colonne ausiliarie (note prima di y, fuori dal modello) entrano in mice solo se migliorano la previsione di oltre il %.0f%%", 100 * (1 - sg)),
+           if (usa) sprintf("imputo PRIMA: %s -%.1f%%; le ausiliarie restano fuori dal modello", mt, 100 * (1 - e_prima / e_dopo)) else
+             "imputo DOPO: le ausiliarie non migliorano l'imputazione abbastanza", "AUTO")
+  imputa(if (usa) cbind(aa$d, aa$aux) else aa$d, y, met, per_gruppo = pg)[names(aa$d)]   # rifatta con il registro attivo
+}
+
 applica_stato <- function(dn, st) {
   y <- st$y; sp <- st$stato_prep
   for (v in names(sp$effetti_gruppo)) { eg <- sp$effetti_gruppo[[v]]   # effetti di gruppo stimati sulla costruzione
@@ -2675,8 +2740,9 @@ costruisci_binaria <- function(dp, cfg, completo = TRUE) {
   y <- cfg$y
   if (!completo) { vecchio <- isTRUE(.RM$quiet); .RM$quiet <- TRUE; on.exit(.RM$quiet <- vecchio) }
   d <- prepara_apprendi(dp, cfg); sp <- attr(d, "stato_prep")
+  aa <- separa_ausiliarie(d, cfg); d <- aa$d
   if (completo) descrittive(d, y)
-  d_imp <- imputa(d, y, cfg$imputazione %||% "mice", per_gruppo = cfg$imputa_per_gruppo)
+  d_imp <- imputa_con_ausiliarie(aa, y, cfg)
   co <- collinearita(d_imp, y, cfg)
   list(cfg = cfg, y = y, stato_prep = sp, d = d, d_imp = d_imp, d1 = co$d, x1 = co$x, quote_def = co$quote_def,
        mappe = list(), lambda = NULL, binaria = TRUE)

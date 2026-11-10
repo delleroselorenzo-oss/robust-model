@@ -13,6 +13,7 @@
   "codice_preparazione": "",
   "filtro": "",
   "escludi": [],
+  "ausiliarie": [],
   "id": [],
   "deduplica": "",
   "righe_doppie": "togli",

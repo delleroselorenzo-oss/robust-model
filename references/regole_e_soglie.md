@@ -11,7 +11,8 @@ Ogni riga dice cosa fa la pipeline, con che soglia, da dove viene la soglia e se
 
 | Controllo | Regola / soglia | Fonte | Tipo |
 |---|---|---|---|
-| x con troppi NA | NA > 20% → elimino la x; sotto il 20% imputo (mice, y esclusa) | [C] | AUTO |
+| x con troppi NA | NA > 20% → elimino la x; sotto il 20% imputo (mice, y esclusa). `soglie.na_max` alza la soglia quando i mancanti sono casuali (lezione 131) | [C] | AUTO / UTENTE |
+| Imputazione prima o dopo aver tolto le x | Con `ausiliarie` (x note prima di y ma fuori dal modello) si imputa con e senza di loro; si imputa PRIMA (con le ausiliarie) solo se la convalida a 10 fold del modello con tutte le x migliora oltre il 2% (5% sotto 300 righe). Solo dati di costruzione: i casi nuovi restano a mediana. Per y binaria: sempre dopo (lezione 137) | [E] | AUTO |
 | y mancante | righe tolte; oltre l'1% si chiede il perché (MNAR?) | [E] (53) | PROPOSTA |
 | NA = assenza | NA quando una colonna gemella vale 0, almeno 20 NA (o 0,5%) → livello "Nessuno" | [E] (16, 70) | PROPOSTA |
 | codici numerici finti | 999…, -99999, -1 isolati all'estremo o ≥ 1% delle righe | [E] (18) | PROPOSTA |

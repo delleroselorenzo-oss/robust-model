@@ -84,7 +84,7 @@ Indagare ogni segnalazione con poche righe di R:
 
 Prima si legge la documentazione del dataset, se esiste (lezioni 21-22). Con AskUserQuestion (al massimo 4 domande per blocco, la raccomandazione come prima opzione) si chiede:
 1. popolazione (filtro) e unità di analisi;
-2. x da escludere perché note solo **dopo** y o derivate da y;
+2. x da escludere perché note solo **dopo** y o derivate da y (→ `escludi`: escono da tutto, imputazione compresa). Le x tolte solo per scelta di analisi (collinearità, domanda) ma note **prima** di y vanno invece in `ausiliarie`: restano fuori dal modello, e la skill valuta in convalida se imputare **prima** di toglierle (mice le usa) o **dopo** (0.8b, lezione 137);
 3. trattamento dei valori sospetti, degli zeri impossibili e dei duplicati;
 4. obiettivo **interpretativo** o **previsivo** (Cook o DFFITS al passo 4) e **metrica guida**: interessa il valore *tipico* (`metrica = "tipico"`, MAE) o la *media / il totale atteso* (`"media"`, RMSE: incassi, costi, volumi)? La metrica decide anche la scala di y: se Box-Cox propone una trasformazione, il passo 2 viene rifatto anche con y non trasformata e vince la convalida sulla scala di y (2.2b). Una scala voluta dall'utente va in `decisioni.lambda` (lezioni 85, 89, 106, 111);
 5. totale, parti o quote (lezione 19);
@@ -94,7 +94,7 @@ Prima si legge la documentazione del dataset, se esiste (lezioni 21-22). Con Ask
 9. zeri numerosi: modello a due parti (`due_parti`, lezioni 41-43).
 
 Le risposte vanno nel config:
-- **Preparazione:** `filtro`, `escludi`, `id`, `fattori`, `codice_preparazione`, `obiettivo`, `metrica`, `codici_mancanti`, `na_come_livello`, `imputa_per_gruppo`.
+- **Preparazione:** `filtro`, `escludi`, `ausiliarie`, `id`, `fattori`, `codice_preparazione`, `obiettivo`, `metrica`, `codici_mancanti`, `na_come_livello`, `imputa_per_gruppo`.
 - **Struttura dei dati:** `deduplica`, `righe_doppie`, `gruppo`, `etichette`, `effetti_gruppo`, `pesi`/`pesi_modo`.
 - **Tempo:** `tempo`, `taglio_tempo`, `trend`.
 - **Modello:** `due_parti`, `decisioni.totali`.
